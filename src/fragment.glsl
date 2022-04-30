@@ -23,14 +23,13 @@ float sdf_capsule(vec3 p, vec3 a, vec3 b, float r) {
 }
 
 float sdf_scene(vec3 p) {
-  p.z -= 10.0f;
+  //p.z -= 10.0f;
   //p.x = abs(p.x);
   float d = p.y; // the ground plane
-  p.x = mod(p.x, 2.0f);
+  //p.x = mod(p.x, 2.0f);
   
-  d = min(d, sdf_sphere(p, vec3(0.75,1, 5.0), u_slider.y ));
-  d = min(d, sdf_sphere(p, vec3( 1.25,1, 5.0), u_slider.y ));
-  d = min(d, sdf_capsule(p, vec3(1., 1., 5.), vec3(1., 3. , u_slider.x), .5));
+  d = min(d, sdf_sphere(p, vec3(0.75-u_slider.x, 1.1-u_slider.y, 5.0-u_slider.z), 0.1+u_slider.w ));
+  d = min(d, sdf_capsule(p, vec3(1., 1.7, 5.), vec3(-1., 2. , 2.5), .5));
   
   return d;
 }
