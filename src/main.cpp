@@ -8,9 +8,9 @@
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
 
-
 #include <cstdio>
 #include <string.h>
+
 
 char *slurp_file(const char *file_path) {
 #define SLURP_FILE_PANIC \
@@ -141,7 +141,7 @@ int main (int argc, char** argv) {
   GLuint ibo;
   GLint vert_pos_attrib;
 
-  #define NUM_UNIFORMS 6
+  #define NUM_UNIFORMS 7
   GLint uniform_locs[NUM_UNIFORMS] {0};
   constexpr const char* uniform_names[NUM_UNIFORMS] = {
     "u_resolution",
@@ -150,9 +150,10 @@ int main (int argc, char** argv) {
     "u_surf_dist",
     "u_slider",
     "u_camera_pos",
+    "u_mouse",
   };
   
-  #if NUM_UNIFORMS != 6
+  #if NUM_UNIFORMS != 7
   #error "exhaustive handling of uniforms"
   #endif
   enum Uniform {
@@ -162,6 +163,7 @@ int main (int argc, char** argv) {
     U_SURF_DIST,
     U_SLIDER,
     U_CAMERA_POS,
+    U_MOUSE
   };
   {
     program_id = glCreateProgram();
@@ -219,12 +221,19 @@ int main (int argc, char** argv) {
   }
   
   // program state
-  int ray_march_max_steps {100};
-  float ray_march_max_dist {100.0};
+  int   ray_march_max_steps {100};
+  float ray_march_max_dist  {100.0};
   float ray_march_surf_dist {0.01f};
-  float slider_values[4] {0.5f, 0.5f, 0.5f, 0.5f};
-  float camera_pos[3] {0.0f, 1.0f, 0.0f};
-  float camera_speed {0.5f};
+  float mouse_sensitivity   {0.001f};
+  float slider_values[4]    {0.5f, 0.5f, 0.5f, 0.5f};
+  float camera_pos[3]       {0.0f, 1.0f, 0.0f};
+  float camera_speed        {0.5f};
+  float mouse_pitch         {0.0f};
+  float mouse_yaw           {0.0f};
+  bool  camera_active       {false};
+  
+  float look_at[3] {0.0f, 0.0f, 0.0f};
+  float camera_dir[3] {0.0f, 0.0f, 0.0f};
 
   bool should_quit {false};
   bool fullscreen {false};
@@ -237,6 +246,23 @@ int main (int argc, char** argv) {
            e.window.event == SDL_WINDOWEVENT_CLOSE &&
            e.window.windowID == SDL_GetWindowID(window)))
         should_quit = true;
+      else if (e.type == SDL_MOUSEBUTTONDOWN) {
+        if (e.button.button == SDL_BUTTON_RIGHT) {
+          camera_active = !camera_active;
+          check(SDL_SetRelativeMouseMode((SDL_bool) camera_active));
+        }
+      }
+      else if (e.type == SDL_MOUSEMOTION) {
+        if (camera_active) {
+          constexpr float tau = 6.28318530718;
+          mouse_yaw   += fmod((static_cast<float>(e.motion.xrel)*mouse_sensitivity), tau);
+          
+          mouse_pitch = fmin(fmax(mouse_pitch-fmod(static_cast<float>(e.motion.yrel)*mouse_sensitivity,
+                                                   tau),
+                                  -1.0f),
+                             1.0f);
+        }
+      }
       else if (e.type == SDL_KEYDOWN) {
         switch (e.key.keysym.sym) {
         case SDLK_ESCAPE: {
@@ -246,19 +272,28 @@ int main (int argc, char** argv) {
           fullscreen = !fullscreen;
         } break;
         case SDLK_w: {
-          camera_pos[2] += camera_speed;
+          camera_dir[2] += camera_speed;
+          //camera_pos[2] += camera_speed;
         } break;
         case SDLK_s: {
-          camera_pos[2] -= camera_speed;
+          camera_dir[2] -= camera_speed;
+          //camera_pos[2] -= camera_speed;
         } break;
         case SDLK_d: {
-          camera_pos[0] += camera_speed;
+          camera_dir[0] += camera_speed;
+          //camera_pos[0] += camera_speed;
         } break;
         case SDLK_a: {
-          camera_pos[0] -= camera_speed;
+          camera_dir[0] -= camera_speed;
+          //camera_pos[0] -= camera_speed;
+        } break;
+        case SDLK_SPACE: {
+          camera_dir[1] += camera_speed;
+        } break;
+        case SDLK_LSHIFT: {
+          camera_dir[1] -= camera_speed;
         } break;
         default: {
-          SDL_Log("%s", e.key.keysym.sym);
         }
         }
       }
@@ -277,26 +312,34 @@ int main (int argc, char** argv) {
 
     // render ui
     // Start the Dear ImGui frame
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
-    { 
+    {
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui_ImplSDL2_NewFrame();
+      ImGui::NewFrame();
+      
       ImGui::Begin("Settings");                          // Create a window called "Hello, world!" and append into it.
       
       ImGui::Checkbox("Fullscreen", &fullscreen);      // Edit bools storing our window open/close state
 
-      ImGui::DragInt("max steps", &ray_march_max_steps, 0.0f, 1, 120);
-      ImGui::DragFloat("max distance", &ray_march_max_dist, 0.0f, 1.0f, 100.0f);
-      ImGui::DragFloat("surface distance", &ray_march_surf_dist, 0.0f, 0.0f, 1.0f);
-      ImGui::DragFloat4("sliders", slider_values, 0.0f, -10.0f, 10.0f);
+      ImGui::SliderInt("max steps", &ray_march_max_steps, 1, 500);
+      ImGui::SliderFloat("max distance", &ray_march_max_dist, 1.0f, 1000.0f);
+      ImGui::SliderFloat("surface distance", &ray_march_surf_dist, 0.01f, 1.0f);
+      ImGui::SliderFloat("mouse sensitivity", &mouse_sensitivity, 0.0001f, .005f);
+      ImGui::SliderFloat4("sliders", slider_values, -10.0f, 10.0f);
       
       ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
       ImGui::End();
+      ImGui::Render();
     }
-    ImGui::Render();
-
-    SDL_GL_GetDrawableSize(window, window_size, window_size+1);
     
+
+    {
+      look_at[0] = camera_pos[0] + cosf(mouse_pitch) * sinf(mouse_yaw);
+      look_at[1] = camera_pos[1] + sinf(mouse_pitch);
+      look_at[2] = camera_pos[2] + cosf(mouse_pitch) * cos(mouse_yaw);
+    }
+    
+    SDL_GL_GetDrawableSize(window, window_size, window_size+1);
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glViewport(0, 0, window_size[0], window_size[1]);
@@ -304,7 +347,7 @@ int main (int argc, char** argv) {
     glUseProgram(program_id);
 
     // set uniforms
-    #if NUM_UNIFORMS != 6
+    #if NUM_UNIFORMS != 7
     #error "exhaustive handling of uniforms"
     #endif
     glUniform2f(uniform_locs[U_RESOLUTION],
@@ -315,6 +358,7 @@ int main (int argc, char** argv) {
     glUniform1f(uniform_locs[U_SURF_DIST], ray_march_surf_dist);
     glUniform4f(uniform_locs[U_SLIDER], slider_values[0], slider_values[1], slider_values[2], slider_values[3]);
     glUniform3f(uniform_locs[U_CAMERA_POS], camera_pos[0], camera_pos[1], camera_pos[2]);
+    glUniform3f(uniform_locs[U_MOUSE], look_at[0], look_at[1], look_at[2]);
     
     glEnableVertexAttribArray(vert_pos_attrib);
 
