@@ -94,25 +94,21 @@ void main () {
   
   vec3 col = vec3(0);
 
-  vec3 ro = u_camera_pos;
-  //vec3 look_at = u_mouse;
-  float zoom = 1.0;//+u_slider.x;
+  vec3  ro   = u_camera_pos;
+  float zoom = 1.0f;
 
-  vec3 look_at = ro + vec3(cos(u_mouse.y) * sin(u_mouse.x),
-                           sin(u_mouse.y),
-                           cos(u_mouse.y) * cos(u_mouse.x));
-  vec3 f = normalize(look_at - ro);
-  vec3 r = cross(vec3(0., 1., 0.), f);
-  vec3 u = cross(f, r);
-
-  vec3 c = ro + f*zoom;
-  vec3 i = c + uv.x*r + uv.y*u;
+  vec3 look_at = vec3(cos(u_mouse.y) * sin(u_mouse.x),
+                      sin(u_mouse.y),
+                      cos(u_mouse.y) * cos(u_mouse.x));
+  vec3 f  = normalize(look_at);
+  vec3 r  = cross(vec3(0., 1., 0.), f);
+  vec3 u  = cross(f, r);
+  vec3 c  = ro + f * zoom;
+  vec3 i  = c + uv.x*r + uv.y*u;
   vec3 rd = normalize(i-ro);
-    
-  //vec3 rd = normalize(vec3(uv.x, uv.y, 1));
 
   float d = ray_march(ro, rd);
-  vec3 p = ro + rd * d;
+  vec3  p = ro + rd * d;
 
   float dif = get_light(p);
   col = vec3(dif);
