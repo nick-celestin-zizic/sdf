@@ -14,10 +14,6 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
-inline float fclamp(float f, float min, float max) {
-  return fmin(fmax(f, min), max);
-}
-
 constexpr inline void _checkp (const char* file, const int line, const void* p) {
   if (!p) {
     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s:%d: %s", file, line, SDL_GetError());
@@ -244,7 +240,7 @@ int main (int argc, char** argv) {
         if (camera_active) {
           constexpr float tau = 6.28318530718f;
           mouse_yaw   += fmod((static_cast<float>(e.motion.xrel)*mouse_sensitivity), tau);
-          mouse_pitch = fclamp(mouse_pitch-static_cast<float>(e.motion.yrel)*mouse_sensitivity, -1.0f, 1.0f); 
+          mouse_pitch = glm::clamp(mouse_pitch-static_cast<float>(e.motion.yrel)*mouse_sensitivity, -1.0f, 1.0f); 
         }
       }
       else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
@@ -261,37 +257,37 @@ int main (int argc, char** argv) {
           if (e.key.state == SDL_PRESSED)
             camera_rel_vel.z = camera_speed;
           else
-            camera_rel_vel.z = fmin(camera_rel_vel.z, 0.0f);
+            camera_rel_vel.z = glm::min(camera_rel_vel.z, 0.0f);
         } break;
         case SDLK_s: {
           if (e.key.state == SDL_PRESSED)
             camera_rel_vel.z = -camera_speed;
           else
-            camera_rel_vel.z = fmax(camera_rel_vel.z, 0.0f);
+            camera_rel_vel.z = glm::max(camera_rel_vel.z, 0.0f);
         } break;
         case SDLK_d: {
           if (e.key.state == SDL_PRESSED)
             camera_rel_vel.x = camera_speed;
           else
-            camera_rel_vel.x = fmin(camera_rel_vel.x, 0.0f);
+            camera_rel_vel.x = glm::min(camera_rel_vel.x, 0.0f);
         } break;
         case SDLK_a: {
           if (e.key.state == SDL_PRESSED)
             camera_rel_vel.x = -camera_speed;
           else
-            camera_rel_vel.x = fmax(camera_rel_vel.x, 0.0f);
+            camera_rel_vel.x = glm::max(camera_rel_vel.x, 0.0f);
         } break;
         case SDLK_SPACE: {
           if (e.key.state == SDL_PRESSED)
             camera_rel_vel.y = camera_speed;
           else
-            camera_rel_vel.y = fmin(camera_rel_vel.y, 0.0f);
+            camera_rel_vel.y = glm::min(camera_rel_vel.y, 0.0f);
         } break;
         case SDLK_LCTRL: {
           if (e.key.state == SDL_PRESSED)
             camera_rel_vel.y = -camera_speed;
           else
-            camera_rel_vel.y = fmax(camera_rel_vel.y, 0.0f);
+            camera_rel_vel.y = glm::max(camera_rel_vel.y, 0.0f);
         } break;
         default: {
         }
