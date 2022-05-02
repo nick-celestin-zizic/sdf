@@ -247,8 +247,8 @@ int main (int argc, char** argv) {
   float mouse_pitch         {0.0f};
   float mouse_yaw           {0.0f};
   
-  glm::vec3 camera_rel_vel   {0.0f, 0.0f, 0.0f};
-  float camera_speed        {10.5f};
+  glm::vec3 camera_rel_vel  {0.0f, 0.0f, 0.0f};
+  float camera_speed        {12.5f};
 
   bool should_quit {false};
   bool fullscreen {false};
@@ -277,39 +277,51 @@ int main (int argc, char** argv) {
           mouse_pitch = fclamp(mouse_pitch-static_cast<float>(e.motion.yrel)*mouse_sensitivity, -1.0f, 1.0f); 
         }
       }
-      else if (e.type == SDL_KEYDOWN) {
+      else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
         switch (e.key.keysym.sym) {
         case SDLK_ESCAPE: {
-          should_quit = true;
+          if (e.key.state == SDL_PRESSED)
+            should_quit = true;
         } break;
         case SDLK_F11: {
-          fullscreen = !fullscreen;
+          if (e.key.state == SDL_PRESSED)
+            fullscreen = !fullscreen;
         } break;
         case SDLK_w: {
-          camera_rel_vel.z += camera_speed;
-          //camera_dir[2] += camera_speed;
-          //camera_pos[2] += camera_speed;
+          if (e.key.state == SDL_PRESSED)
+            camera_rel_vel.z = camera_speed;
+          else
+            camera_rel_vel.z = fmin(camera_rel_vel.z, 0.0f);
         } break;
         case SDLK_s: {
-          camera_rel_vel.z -= camera_speed;
-          //camera_dir[2] -= camera_speed;
-          //camera_pos[2] -= camera_speed;
+          if (e.key.state == SDL_PRESSED)
+            camera_rel_vel.z = -camera_speed;
+          else
+            camera_rel_vel.z = fmax(camera_rel_vel.z, 0.0f);
         } break;
         case SDLK_d: {
-          camera_rel_vel.x += camera_speed;
-          ///camera_dir[0] += camera_speed;
-          //camera_pos[0] += camera_speed;
+          if (e.key.state == SDL_PRESSED)
+            camera_rel_vel.x = camera_speed;
+          else
+            camera_rel_vel.x = fmin(camera_rel_vel.x, 0.0f);
         } break;
         case SDLK_a: {
-          camera_rel_vel.x -= camera_speed;
-          //camera_dir[0] -= camera_speed;
-          //camera_pos[0] -= camera_speed;
+          if (e.key.state == SDL_PRESSED)
+            camera_rel_vel.x = -camera_speed;
+          else
+            camera_rel_vel.x = fmax(camera_rel_vel.x, 0.0f);
         } break;
         case SDLK_SPACE: {
-          //camera_dir[1] += camera_speed;
+          if (e.key.state == SDL_PRESSED)
+            camera_rel_vel.y = camera_speed;
+          else
+            camera_rel_vel.y = fmin(camera_rel_vel.y, 0.0f);
         } break;
         case SDLK_LSHIFT: {
-          //camera_dir[1] -= camera_speed;
+          if (e.key.state == SDL_PRESSED)
+            camera_rel_vel.y = -camera_speed;
+          else
+            camera_rel_vel.y = fmax(camera_rel_vel.y, 0.0f);
         } break;
         default: {
         }
@@ -330,15 +342,16 @@ int main (int argc, char** argv) {
 
     last = now;
     now = SDL_GetPerformanceCounter();
-    dt = static_cast<float>(static_cast<float>((now - last) * 10) /
+    dt = static_cast<float>(static_cast<float>((now - last)) /
                             static_cast<float>(SDL_GetPerformanceFrequency()));
     SDL_Log("%f", dt);
 
     {
       using namespace glm;
       const quat q_yaw = angleAxis(mouse_yaw, vec3(0, 1, 0));
-      camera.position += q_yaw * vec4(camera_rel_vel * dt, 1.0f);
-      camera_rel_vel = vec3(0.0f);
+      camera.position +=
+        q_yaw *
+        vec4(camera_rel_vel, 1.0f) * dt;
     }
 
     // render ui
