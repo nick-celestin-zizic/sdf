@@ -7,7 +7,7 @@ uniform float u_max_dist;
 uniform float u_surf_dist;
 uniform vec4 u_slider;
 uniform vec3 u_camera_pos;
-uniform vec3 u_mouse;
+uniform vec2 u_mouse;
 
 
 out vec4 frag_color;
@@ -40,6 +40,9 @@ float sdf_scene(vec3 p) {
   //p.x = abs(p.x);
   float d = p.y + 2.0; // the ground plane
   p.x += 4.0;
+  
+  p_mod_mirror_1(p.x, u_slider.x);
+  //p_mod_1(p.y, u_slider.y);
 
   //p_mod_1(p.x, 10.+u_slider.x*2.);
 
@@ -92,9 +95,12 @@ void main () {
   vec3 col = vec3(0);
 
   vec3 ro = u_camera_pos;
-  vec3 look_at = u_mouse;
+  //vec3 look_at = u_mouse;
   float zoom = 1.0;//+u_slider.x;
 
+  vec3 look_at = ro + vec3(cos(u_mouse.y) * sin(u_mouse.x),
+                           sin(u_mouse.y),
+                           cos(u_mouse.y) * cos(u_mouse.x));
   vec3 f = normalize(look_at - ro);
   vec3 r = cross(vec3(0., 1., 0.), f);
   vec3 u = cross(f, r);
