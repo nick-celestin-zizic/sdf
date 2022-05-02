@@ -3,7 +3,6 @@
 #include <SDL2/SDL_opengl.h>
 #include <GL/GLU.h>
 
-
 #include "imgui.h"
 #include "imgui_impl_sdl.h"
 #include "imgui_impl_opengl3.h"
@@ -12,40 +11,8 @@
 #include <string.h>
 #include <stdint.h>
 
-#define GLM_FORCE_SWIZZLE 
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
-
-
-char *slurp_file(const char *file_path) {
-#define SLURP_FILE_PANIC \
-    do { \
-        fprintf(stderr, "Could not read file `%s`: %s\n", file_path, strerror(errno)); \
-        exit(1); \
-    } while (0)
-
-    FILE *f = fopen(file_path, "r");
-    if (f == NULL) SLURP_FILE_PANIC;
-    if (fseek(f, 0, SEEK_END) < 0) SLURP_FILE_PANIC;
-
-    long size = ftell(f);
-    if (size < 0) SLURP_FILE_PANIC;
-
-    char *buffer = static_cast<char*>(calloc(size + 1, sizeof(char)));
-    if (buffer == NULL) SLURP_FILE_PANIC;
-
-    if (fseek(f, 0, SEEK_SET) < 0) SLURP_FILE_PANIC;
-
-    fread(buffer, 1, size, f);
-    if (ferror(f) < 0) SLURP_FILE_PANIC;
-
-    buffer[size] = '\0';
-
-    if (fclose(f) < 0) SLURP_FILE_PANIC;
-
-    return buffer;
-#undef SLURP_FILE_PANIC
-}
 
 inline float fclamp(float f, float min, float max) {
   return fmin(fmax(f, min), max);
@@ -190,8 +157,11 @@ int main (int argc, char** argv) {
     GLuint vertex_shader {
       compile_shader_from_source(vertex_src, GL_VERTEX_SHADER)
     };
-    
-    const char* fragment_src { slurp_file("./src/fragment.glsl") };
+
+    // TODO: live shader reloading
+    const char* fragment_src {
+      static_cast<char*>(SDL_LoadFile("./src/fragment.glsl", NULL))
+    };
     GLuint fragment_shader {
       compile_shader_from_source(fragment_src, GL_FRAGMENT_SHADER)
     };
@@ -317,7 +287,7 @@ int main (int argc, char** argv) {
           else
             camera_rel_vel.y = fmin(camera_rel_vel.y, 0.0f);
         } break;
-        case SDLK_LSHIFT: {
+        case SDLK_LCTRL: {
           if (e.key.state == SDL_PRESSED)
             camera_rel_vel.y = -camera_speed;
           else
@@ -344,14 +314,11 @@ int main (int argc, char** argv) {
     now = SDL_GetPerformanceCounter();
     dt = static_cast<float>(static_cast<float>((now - last)) /
                             static_cast<float>(SDL_GetPerformanceFrequency()));
-    SDL_Log("%f", dt);
 
     {
       using namespace glm;
       const quat q_yaw = angleAxis(mouse_yaw, vec3(0, 1, 0));
-      camera.position +=
-        q_yaw *
-        vec4(camera_rel_vel, 1.0f) * dt;
+      camera.position += q_yaw * vec4(camera_rel_vel, 1.0f) * dt;
     }
 
     // render ui
