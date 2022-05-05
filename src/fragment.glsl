@@ -39,17 +39,22 @@ float sdf_capsule(vec3 p, vec3 a, vec3 b, float r) {
 float sdf_scene(vec3 p) {
   //p.x = abs(p.x);
   float d = p.y + 2.0; // the ground plane
-  p.x += 4.0;
+  //p.x += 4.0;
   
-  p_mod_mirror_1(p.x, u_slider.x);
+  //p_mod_mirror_1(p.x, u_slider.x);
   //p_mod_1(p.y, u_slider.y);
 
   //p_mod_1(p.x, 10.+u_slider.x*2.);
 
   //p_mod_mirror_1(p.y, 1.+u_slider.y);
-  d = min(d, sdf_sphere(p, vec3(-2.208, 1.169, 4.026), 0.769));
-  //p_mod_mirror_1(p.x, 1.+u_slider.x);
+  //p_mod_mirror_1(p.z, 1.+u_slider.z);
+  //p -= u_slider.xyz;
+  //d = min(d, sdf_sphere(p, vec3(-2.208, 1.169, 4.026), 0.769));
+  //p += u_slider.xyz;
+  //p_mod_mirror_1(p.x, u_slider.w);
   d = min(d, sdf_capsule(p, vec3(1., 1.7, 5.), vec3(-1., 2. , 2.5), .5));
+
+  d = min(d, sdf_capsule(p, u_slider.xyz, vec3(0., 10., 0.), u_slider.w));
   
   return d;
 }
@@ -112,7 +117,6 @@ void main () {
 
   float dif = get_light(p);
   col = vec3(dif);
-
   col += normal(p) * -0.5;
-  frag_color = vec4(col, 1.0);;
+  frag_color = vec4(col, 1.0);
 }
