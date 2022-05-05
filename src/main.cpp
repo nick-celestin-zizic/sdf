@@ -14,63 +14,11 @@
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
-constexpr inline void _checkp (const char* file, const int line, const void* p) {
-  if (!p) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s:%d: %s", file, line, SDL_GetError());
-    exit(1);
-  }
-}
-#define checkp(p) _checkp(__FILE__, __LINE__, static_cast<void*>((p)))
+#include "main.hpp"
+#include "util.cpp"
+#include "shader.cpp"
 
-void _check (const char* file, const int line, const int e) {
-  if (e < 0) {
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s:%d: %s", file, line, SDL_GetError());
-    exit(1);
-  }
-}
-#define check(e) _check(__FILE__, __LINE__, (e))
 
-GLuint compile_shader_from_source(const char* src, GLenum type) {
-  GLuint shader {glCreateShader(type)};
-
-  glShaderSource(shader, 1, &src, NULL);
-    glCompileShader(shader);
-
-    GLint shader_compiled = GL_FALSE;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &shader_compiled);
-    if (shader_compiled != GL_TRUE) {
-      //Shader log length
-      int infoLogLength = 0;
-      int maxLength = infoLogLength;
-      
-      //Get info string length
-      glGetShaderiv( shader, GL_INFO_LOG_LENGTH, &maxLength );
-      
-      //Allocate string
-      char* infoLog = new char[ maxLength ];
-      
-      //Get info log
-      glGetShaderInfoLog(shader, maxLength, &infoLogLength, infoLog);
-      if (infoLogLength > 0) {
-        //Print Log
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, infoLog);
-      }
-
-      //Deallocate string
-      delete[] infoLog;
-      exit(1);
-    }
-
-  return shader;
-}
-
-struct camera_t {
-  glm::vec4 position;
-  glm::quat orientation;
-};
-
-#define DEFAULT_WIDTH 800
-#define DEFAULT_HEIGHT 600
 int main (int argc, char** argv) {
   (void) argc;
   (void) argv;
@@ -108,120 +56,23 @@ int main (int argc, char** argv) {
   ImGui::StyleColorsDark();
   ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
   ImGui_ImplOpenGL3_Init("#version 330");
-
-  // create the sdf shader
-
-  GLuint program_id;
-  GLuint vbo;
-  GLuint ibo;
-  GLint vert_pos_attrib;
-
-  #define NUM_UNIFORMS 7
-  GLint uniform_locs[NUM_UNIFORMS] {0};
-  constexpr const char* uniform_names[NUM_UNIFORMS] = {
-    "u_resolution",
-    "u_max_steps",
-    "u_max_dist",
-    "u_surf_dist",
-    "u_slider",
-    "u_camera_pos",
-    "u_mouse",
-  };
-  
-  #if NUM_UNIFORMS != 7
-  #error "exhaustive handling of uniforms"
-  #endif
-  enum Uniform {
-    U_RESOLUTION = 0,
-    U_MAX_STEPS,
-    U_MAX_DIST,
-    U_SURF_DIST,
-    U_SLIDER,
-    U_CAMERA_POS,
-    U_MOUSE
-  };
-  {
-    program_id = glCreateProgram();
-    
-    constexpr const char* vertex_src {
-      "#version 330 core\n"
-      "layout (location = 0) in vec2 pos;\n"
-      "void main(void)\n{"
-      "  gl_Position = vec4(pos, 0.0, 1.0);\n"
-      "}"
-    };
-    GLuint vertex_shader {
-      compile_shader_from_source(vertex_src, GL_VERTEX_SHADER)
-    };
-
-    // TODO: live shader reloading
-    const char* fragment_src {
-      static_cast<char*>(SDL_LoadFile("./src/fragment.glsl", NULL))
-    };
-    GLuint fragment_shader {
-      compile_shader_from_source(fragment_src, GL_FRAGMENT_SHADER)
-    };
-
-    glAttachShader(program_id, vertex_shader);
-    glAttachShader(program_id, fragment_shader);
-
-    glLinkProgram(program_id);
-
-    vert_pos_attrib = glGetAttribLocation(program_id, "pos");
-
-    //Initialize clear color
-    glClearColor( 0.f, 0.f, 0.f, 1.f );
-    
-    //VBO data
-    GLfloat vertexData[] {
-      -1.f, -1.f,
-      1.f, -1.f,
-      1.f,  1.f,
-      -1.f,  1.f
-    };
-    
-    //IBO data
-    GLuint indexData[] { 0, 1, 2, 3 };
-    
-    //Create VBO
-    glGenBuffers( 1, &vbo);
-    glBindBuffer( GL_ARRAY_BUFFER, vbo);
-    glBufferData( GL_ARRAY_BUFFER, 2 * 4 * sizeof(GLfloat), vertexData, GL_STATIC_DRAW );
-    
-    //Create IBO
-    glGenBuffers( 1, &ibo);
-    glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glBufferData( GL_ELEMENT_ARRAY_BUFFER, 4 * sizeof(GLuint), indexData, GL_STATIC_DRAW );
-
-    // get uniform locations
-    for (int i = 0; i < NUM_UNIFORMS; ++i)
-      uniform_locs[i] = glGetUniformLocation(program_id, uniform_names[i]);
-  }
   
   // program state
-  camera_t camera;
-  camera.position = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+  shader_t shader {};
+  uint64_t shader_last_modified { get_last_modified_time(fragment_path) };
+
+  camera_t camera {};
   
-  int   ray_march_max_steps {100};
-  float ray_march_max_dist  {100.0};
-  float ray_march_surf_dist {0.01f};
+  ray_march_params_t rm_params {500, 5000.0f, 0.001f};
   float mouse_sensitivity   {0.001f};
   float slider_values[4]    {0.5f, 0.5f, 0.5f, 0.5f};
-  
-  bool  camera_active       {false};
-  
-  float mouse_pitch         {0.0f};
-  float mouse_yaw           {0.0f};
-  
-  glm::vec3 camera_rel_vel  {0.0f, 0.0f, 0.0f};
-  float camera_speed        {12.5f};
 
-  bool should_quit {false};
-  bool fullscreen {false};
-  uint64_t now { SDL_GetPerformanceCounter() };
-  uint64_t last { 0 };
-  float dt { 0.0f };
-  SDL_Event e {0};
+  bool should_quit { false };
+  bool fullscreen  { false };
+  uint64_t now     { SDL_GetPerformanceCounter() };
+  uint64_t last    { 0 };
+  float dt         { 0.0f };
+  SDL_Event e      { 0 };
   while (!should_quit) {
     while (SDL_PollEvent(&e) != 0) {
       ImGui_ImplSDL2_ProcessEvent(&e);
@@ -232,15 +83,15 @@ int main (int argc, char** argv) {
         should_quit = true;
       else if (e.type == SDL_MOUSEBUTTONDOWN) {
         if (e.button.button == SDL_BUTTON_RIGHT) {
-          camera_active = !camera_active;
-          check(SDL_SetRelativeMouseMode((SDL_bool) camera_active));
+          camera.active = !camera.active;
+          check(SDL_SetRelativeMouseMode((SDL_bool) camera.active));
         }
       }
       else if (e.type == SDL_MOUSEMOTION) {
-        if (camera_active) {
+        if (camera.active) {
           constexpr float tau = 6.28318530718f;
-          mouse_yaw   += fmod((static_cast<float>(e.motion.xrel)*mouse_sensitivity), tau);
-          mouse_pitch = glm::clamp(mouse_pitch-static_cast<float>(e.motion.yrel)*mouse_sensitivity, -1.0f, 1.0f); 
+          camera.yaw   += fmod((static_cast<float>(e.motion.xrel)*mouse_sensitivity), tau);
+          camera.pitch = glm::clamp(camera.pitch-static_cast<float>(e.motion.yrel)*mouse_sensitivity, -1.0f, 1.0f); 
         }
       }
       else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
@@ -255,39 +106,39 @@ int main (int argc, char** argv) {
         } break;
         case SDLK_w: {
           if (e.key.state == SDL_PRESSED)
-            camera_rel_vel.z = camera_speed;
+            camera.velocity.z = CAMERA_SPEED;
           else
-            camera_rel_vel.z = glm::min(camera_rel_vel.z, 0.0f);
+            camera.velocity.z = glm::min(camera.velocity.z, 0.0f);
         } break;
         case SDLK_s: {
           if (e.key.state == SDL_PRESSED)
-            camera_rel_vel.z = -camera_speed;
+            camera.velocity.z = -CAMERA_SPEED;
           else
-            camera_rel_vel.z = glm::max(camera_rel_vel.z, 0.0f);
+            camera.velocity.z = glm::max(camera.velocity.z, 0.0f);
         } break;
         case SDLK_d: {
           if (e.key.state == SDL_PRESSED)
-            camera_rel_vel.x = camera_speed;
+            camera.velocity.x = CAMERA_SPEED;
           else
-            camera_rel_vel.x = glm::min(camera_rel_vel.x, 0.0f);
+            camera.velocity.x = glm::min(camera.velocity.x, 0.0f);
         } break;
         case SDLK_a: {
           if (e.key.state == SDL_PRESSED)
-            camera_rel_vel.x = -camera_speed;
+            camera.velocity.x = -CAMERA_SPEED;
           else
-            camera_rel_vel.x = glm::max(camera_rel_vel.x, 0.0f);
+            camera.velocity.x = glm::max(camera.velocity.x, 0.0f);
         } break;
         case SDLK_SPACE: {
           if (e.key.state == SDL_PRESSED)
-            camera_rel_vel.y = camera_speed;
+            camera.velocity.y = CAMERA_SPEED;
           else
-            camera_rel_vel.y = glm::min(camera_rel_vel.y, 0.0f);
+            camera.velocity.y = glm::min(camera.velocity.y, 0.0f);
         } break;
         case SDLK_LCTRL: {
           if (e.key.state == SDL_PRESSED)
-            camera_rel_vel.y = -camera_speed;
+            camera.velocity.y = -CAMERA_SPEED;
           else
-            camera_rel_vel.y = glm::max(camera_rel_vel.y, 0.0f);
+            camera.velocity.y = glm::max(camera.velocity.y, 0.0f);
         } break;
         default: {
         }
@@ -306,15 +157,23 @@ int main (int argc, char** argv) {
       SDL_SetWindowSize(window, DEFAULT_WIDTH, DEFAULT_HEIGHT);
     }
 
-    last = now;
-    now = SDL_GetPerformanceCounter();
-    dt = static_cast<float>(static_cast<float>((now - last)) /
-                            static_cast<float>(SDL_GetPerformanceFrequency()));
-
     {
+      // update dt
+      last = now;
+      now  = SDL_GetPerformanceCounter();
+      dt   = static_cast<float>(now - last) / static_cast<float>(SDL_GetPerformanceFrequency());
+      
+      // check if shader needs reloading
+      const uint64_t file_modified = get_last_modified_time(fragment_path);
+      if (shader_last_modified != file_modified) {
+        shader.recompile();
+        shader_last_modified = file_modified;
+      }
+      
+      // calculate camera_position
       using namespace glm;
-      const quat q_yaw = angleAxis(mouse_yaw, vec3(0, 1, 0));
-      camera.position += q_yaw * vec4(camera_rel_vel, 1.0f) * dt;
+      const quat q_yaw = angleAxis(camera.yaw, vec3(0, 1, 0));
+      camera.position += q_yaw * camera.velocity * dt;
     }
 
     // render ui
@@ -324,13 +183,13 @@ int main (int argc, char** argv) {
       ImGui_ImplSDL2_NewFrame();
       ImGui::NewFrame();
       
-      ImGui::Begin("Settings");                          // Create a window called "Hello, world!" and append into it.
+      ImGui::Begin("Settings");
       
-      ImGui::Checkbox("Fullscreen", &fullscreen);      // Edit bools storing our window open/close state
+      ImGui::Checkbox("Fullscreen", &fullscreen);
 
-      ImGui::SliderInt("max steps", &ray_march_max_steps, 1, 10000);
-      ImGui::SliderFloat("max distance", &ray_march_max_dist, 1.0f, 10000.0f);
-      ImGui::SliderFloat("surface distance", &ray_march_surf_dist, 0.01f, 1.0f);
+      ImGui::SliderInt("max steps", &rm_params.max_steps, 1, 10000);
+      ImGui::SliderFloat("max distance", &rm_params.max_dist, 1.0f, 10000.0f);
+      ImGui::SliderFloat("surface distance", &rm_params.surf_dist, 0.01f, 1.0f);
       ImGui::SliderFloat("mouse sensitivity", &mouse_sensitivity, 0.0001f, .005f);
       ImGui::SliderFloat4("sliders", slider_values, -10.0f, 10.0f);
       
@@ -343,34 +202,8 @@ int main (int argc, char** argv) {
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glViewport(0, 0, window_size[0], window_size[1]);
-
-    glUseProgram(program_id);
-
-    // set uniforms
-    #if NUM_UNIFORMS != 7
-    #error "exhaustive handling of uniforms"
-    #endif
-    glUniform2f(uniform_locs[U_RESOLUTION], static_cast<float>(window_size[0]), static_cast<float>(window_size[1]));
-    glUniform1i(uniform_locs[U_MAX_STEPS], ray_march_max_steps);
-    glUniform1f(uniform_locs[U_MAX_DIST], ray_march_max_dist);
-    glUniform1f(uniform_locs[U_SURF_DIST], ray_march_surf_dist);
-    glUniform4f(uniform_locs[U_SLIDER], slider_values[0], slider_values[1], slider_values[2], slider_values[3]);
-    glUniform3f(uniform_locs[U_CAMERA_POS], camera.position.x, camera.position.y, camera.position.z);
-    glUniform2f(uniform_locs[U_MOUSE], mouse_yaw, mouse_pitch);
     
-    glEnableVertexAttribArray(vert_pos_attrib);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glVertexAttribPointer(vert_pos_attrib, 2, GL_FLOAT,
-                          GL_FALSE, 2 * sizeof(GLfloat),
-                          NULL);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
-
-    glDisableVertexAttribArray(vert_pos_attrib);
-    
-    glUseProgram(0);
+    shader.run(window_size, rm_params, slider_values, camera);
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     SDL_GL_SwapWindow(window);
