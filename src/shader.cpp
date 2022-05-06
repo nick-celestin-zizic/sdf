@@ -35,6 +35,8 @@ shader_t::shader_t() {
     
     glShaderSource(shader, 1, &fragment_src, &static_cast<int>(size));
     glCompileShader(shader);
+
+    free(static_cast<void*>(fragment_src));
     
     GLint shader_compiled { GL_FALSE };
     glGetShaderiv(shader, GL_COMPILE_STATUS, &shader_compiled);
@@ -50,8 +52,6 @@ shader_t::shader_t() {
       SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s", info_log);
       exit(1);
     }
-    
-    free(static_cast<void*>(fragment_src)); 
   }
 
   glAttachShader(program, vert_shader);
@@ -110,7 +110,7 @@ void shader_t::recompile() {
     glShaderSource(new_shader, 1, &fragment_src, &static_cast<int>(size));
     glCompileShader(new_shader);
 
-    free(static_cast<void*>(fragment_src)); 
+    free(static_cast<void*>(fragment_src));
     
     GLint shader_compiled { GL_FALSE };
     glGetShaderiv(new_shader, GL_COMPILE_STATUS, &shader_compiled);
@@ -124,6 +124,8 @@ void shader_t::recompile() {
       
       glGetShaderInfoLog(new_shader, max_len, &log_len, info_log);
       SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s",info_log);
+
+      glDeleteShader(new_shader);
     } else {
       glDeleteShader(frag_shader);
       frag_shader = new_shader;
