@@ -17,7 +17,7 @@ constexpr inline void _check (const char* file, const int line, const int e) {
 
 inline uint64_t get_last_modified_time(const char* path) {
   struct stat s;
-  return (stat(path, &s) == 0) ? s.st_mtime : -1;
+  return (stat(path, &s) == 0) ? s.st_mtime : 0;
 }
 
 char* slurp_file(const char* file_path, size_t* size) {
@@ -25,19 +25,21 @@ char* slurp_file(const char* file_path, size_t* size) {
   do {                                                                       \
     char buf[256];                                                           \
     strerror_s(buf, sizeof(buf), errno);                                     \
-    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Could not read file `%s`: %s \n", file_path, buf); \
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "%s:%d Could not read file `%s`: %s \n", __FILE__, __LINE__, file_path, buf); \
     exit(1);                                                                 \
   } while (0)
-  
-  FILE *f;
-  fopen_s(&f, file_path, "r");
+
+  // NOTE: we do this because fclose doesn't immediately release the file handle so if the file was edited recently it might not be available so we wait a bit
+  constexpr int MAX_ATTEMPTS { 20 };
+  FILE *f { nullptr };
+  for (int a { 0 }; a < MAX_ATTEMPTS && !f; ++a) fopen_s(&f, file_path, "r");
   if (f == NULL) SLURP_FILE_PANIC;
   if (fseek(f, 0, SEEK_END) < 0) SLURP_FILE_PANIC;
   
   *size = ftell(f);
   if (size < 0) SLURP_FILE_PANIC;
   
-  char *buffer = static_cast<char*>(calloc(*size + 1, sizeof(char)));
+  char *buffer { static_cast<char*>(calloc(*size + 1, sizeof(char))) }; // NOTE: calloc because there was an issue with garbage at the end sometimes so we null terminate
   if (buffer == NULL) SLURP_FILE_PANIC;
   
   if (fseek(f, 0, SEEK_SET) < 0) SLURP_FILE_PANIC;
@@ -45,8 +47,7 @@ char* slurp_file(const char* file_path, size_t* size) {
   fread(buffer, 1, *size, f);
   if (ferror(f) < 0) SLURP_FILE_PANIC;
   
-  buffer[*size] = '\0';
-  
+  if (fflush(f) != 0) SLURP_FILE_PANIC;
   if (fclose(f) < 0) SLURP_FILE_PANIC;
   
   return buffer;
