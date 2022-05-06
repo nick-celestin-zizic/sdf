@@ -58,14 +58,13 @@ int main (int argc, char** argv) {
   ImGui_ImplOpenGL3_Init("#version 330");
   
   // program state
-  shader_t shader {};
-  uint64_t shader_last_modified { get_last_modified_time(fragment_path) };
-
-  camera_t camera {};
+  shader_t           shader    {};
+  camera_t           camera    {};
+  ray_march_params_t rm_params {};
   
-  ray_march_params_t rm_params {500, 5000.0f, 0.001f};
-  float mouse_sensitivity   {0.001f};
-  float slider_values[4]    {0.5f, 0.5f, 0.5f, 0.5f};
+  uint64_t shader_last_modified { get_last_modified_time(fragment_path) };
+  float    mouse_sensitivity    { 0.001f };
+  float    slider_values[4]     { 0.5f, 0.5f, 0.5f, 0.5f };
 
   bool should_quit { false };
   bool fullscreen  { false };
@@ -170,7 +169,7 @@ int main (int argc, char** argv) {
         shader_last_modified = file_modified;
       }
       
-      // calculate camera_position
+      // calculate camera position
       using namespace glm;
       const quat q_yaw = angleAxis(camera.yaw, vec3(0, 1, 0));
       camera.position += q_yaw * camera.velocity * dt;
