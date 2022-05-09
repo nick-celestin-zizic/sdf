@@ -49,7 +49,6 @@ char* slurp_file(const char* file_path, size_t* size) {
   
   if (fflush(f) != 0) SLURP_FILE_PANIC;
   if (fclose(f) < 0) SLURP_FILE_PANIC;
-  //SDL_Log("%s", buffer);
   return buffer;
 #undef SLURP_FILE_PANIC
 }
