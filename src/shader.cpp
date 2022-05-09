@@ -129,7 +129,6 @@ void shader_t::recompile() {
     } else {
       glDeleteShader(frag_shader);
       frag_shader = new_shader;
-      SDL_Log("recompiled fragment shader");
     }
   }
 
@@ -147,8 +146,7 @@ void shader_t::recompile() {
     glGetProgramInfoLog(program, 1024, NULL, message);
     SDL_Log("%s", message);
     exit(1);
-  } else
-    SDL_Log("program linked");
+  }
   
   vert_attrib = glGetAttribLocation(program, "pos");
 
