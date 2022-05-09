@@ -30,9 +30,9 @@ char* slurp_file(const char* file_path, size_t* size) {
   } while (0)
 
   // NOTE: we do this because fclose doesn't immediately release the file handle so if the file was edited recently it might not be available so we wait a bit
-  constexpr int MAX_ATTEMPTS { 20 };
+  constexpr int MAX_ATTEMPTS { 200 };
   FILE *f { nullptr };
-  for (int a { 0 }; a < MAX_ATTEMPTS && !f; ++a) fopen_s(&f, file_path, "r");
+  for (int a { 0 }; a < MAX_ATTEMPTS && !f; ++a) fopen_s(&f, file_path, "rb");
   if (f == NULL) SLURP_FILE_PANIC;
   if (fseek(f, 0, SEEK_END) < 0) SLURP_FILE_PANIC;
   
@@ -49,7 +49,7 @@ char* slurp_file(const char* file_path, size_t* size) {
   
   if (fflush(f) != 0) SLURP_FILE_PANIC;
   if (fclose(f) < 0) SLURP_FILE_PANIC;
-  
+  //SDL_Log("%s", buffer);
   return buffer;
 #undef SLURP_FILE_PANIC
 }
